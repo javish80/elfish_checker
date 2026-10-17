@@ -163,6 +163,7 @@ export class Renderer {
       const prev = this.cur.get(id);
       this.cur.set(id, p);
       g.style.transform = tr(p);
+      g.style.opacity = '';
       this.body(id).style.transform = `scale(${p.s})`;
       if (animate && this.motion && prev && (prev.x !== p.x || prev.y !== p.y)) {
         anims.push(g.animate([{ transform: tr(prev) }, { transform: tr(p) }], {
@@ -262,14 +263,19 @@ export class Renderer {
         const g = this.pieces.get(id);
         await sleep(120);
         fx.dust(this.fxLayer, this.cur.get(id), true);
-        await g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' }).finished;
+        try {
+          await g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' }).finished;
+        } catch {}
         const home = final.get(id);
         this.cur.set(id, home);
         g.style.transform = tr(home);
         this.body(id).style.transform = `scale(${home.s})`;
         fx.dust(this.fxLayer, home, true);
-        await g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: 'forwards' }).finished;
+        try {
+          await g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: 'forwards' }).finished;
+        } catch {}
         g.getAnimations().forEach((a) => a.cancel());
+        g.style.opacity = '';
       } else if (ev.type === 'finish') {
         fx.sparkle(this.fxLayer, final.get(ev.id));
       }

@@ -21,14 +21,13 @@ ORDER = [
 
 def clean_source(path: Path) -> str:
     content = path.read_text(encoding='utf-8')
+    # Strip multiline and single-line import statements
+    content = re.sub(r'^\s*import\s+[\s\S]*?from\s+[\'"][^\'"]+[\'"];?\s*$', '', content, flags=re.MULTILINE)
+    content = re.sub(r'^\s*import\s+[^;\n]+;?\s*$', '', content, flags=re.MULTILINE)
+    # Strip standalone multiline and single-line export { ... }
+    content = re.sub(r'^\s*export\s*\{[\s\S]*?\};?\s*$', '', content, flags=re.MULTILINE)
     lines = []
     for line in content.splitlines():
-        # Strip import statements
-        if re.match(r'^\s*import\s+', line):
-            continue
-        # Strip standalone export { ... }
-        if re.match(r'^\s*export\s*\{[^}]*\};?\s*$', line):
-            continue
         # Strip "export default"
         line = re.sub(r'^\s*export\s+default\s+', '', line)
         # Strip "export " prefix from functions, classes, const, let, var

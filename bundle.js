@@ -3,6 +3,18 @@
   'use strict';
 
   // ==================== src/game/board.js ====================
+  /**
+   * Board geometry & graph.
+   *
+   * Rows are numbered from White's side:
+   *   row 0  = White home oval ("W")
+   *   rows 1..5 = circles, widths 4-3-4-3-4
+   *   row 6  = Black home oval ("B")
+   *
+   * Lines only run diagonally between neighbouring rows. Each home oval is
+   * linked to all four circles of its nearest row.
+   */
+
   const TEAMS = ['W', 'B'];
   const HOME = { W: 'W', B: 'B' };
   const ENEMY = { W: 'B', B: 'W' };
@@ -16,7 +28,9 @@
   const X4 = [120, 240, 360, 480];
   const X3 = [180, 300, 420];
 
+  /** @type {Record<string, {id:string,row:number,col:number,x:number,y:number,kind:'oval'|'circle'}>} */
   const NODES = {};
+  /** Undirected edges as [a, b] pairs (for drawing). */
   const EDGES = [];
   const ADJ = {};
 
@@ -39,10 +53,12 @@
     xs.forEach((x, c) => addNode(circleId(r, c), r, c, x, ROW_Y[r], 'circle'));
   }
 
+  // Ovals ↔ their nearest 4-wide row.
   for (let c = 0; c < 4; c++) {
     link('W', circleId(1, c));
     link('B', circleId(5, c));
   }
+  // Diagonals between circle rows.
   for (let r = 1; r <= 4; r++) {
     for (let c = 0; c < ROW_WIDTH[r]; c++) {
       const targets = ROW_WIDTH[r] === 4 ? [c - 1, c] : [c, c + 1];
@@ -54,22 +70,38 @@
 
   const isOval = (id) => NODES[id].kind === 'oval';
 
+  /** Neighbours of `id` that are one step *forward* for `team`. */
   function forward(id, team) {
     const row = NODES[id].row;
     return ADJ[id].filter((n) => (team === 'W' ? NODES[n].row > row : NODES[n].row < row));
   }
 
+  /** How far a node is along `team`'s journey (0 = own home, 6 = enemy home). */
   function progress(id, team) {
     const row = NODES[id].row;
     return team === 'W' ? row : 6 - row;
   }
 
+  /** The 7 starting circles of a team (its first two rows). */
   function startCircles(team) {
     const rows = team === 'W' ? [1, 2] : [5, 4];
     return rows.flatMap((r) => Array.from({ length: ROW_WIDTH[r] }, (_, c) => circleId(r, c)));
   }
 
   // ==================== src/game/rules.js ====================
+  /**
+   * Pure game rules for Elfish Checkers. No DOM access — safe to use in workers/tests.
+   *
+   * State shape:
+   * {
+   *   turn: 'W' | 'B',
+   *   trolls: { W: nodeId, B: nodeId },
+   *   elves: [{ id, team, node, done }],
+   *   winner: null | 'W' | 'B',
+   *   ply: number
+   * }
+   */
+
   const ELVES_PER_TEAM = 7;
   const MAX_ELVES_PER_CIRCLE = 2;
   const trollId = (team) => `T${team}`;
@@ -94,6 +126,7 @@
 
   const elvesOn = (s, node) => s.elves.filter((e) => e.node === node && !e.done);
 
+  /** Team whose troll stands on a *circle* `node`, or null. Ovals never block. */
   function trollOnCircle(s, node) {
     if (isOval(node)) return null;
     if (s.trolls.W === node) return 'W';
@@ -102,15 +135,16 @@
   }
 
   function canElfEnter(s, node, team) {
-    if (isOval(node)) return node === HOME[ENEMY[team]];
-    if (trollOnCircle(s, node)) return false;
+    if (isOval(node)) return node === HOME[ENEMY[team]]; // only the enemy oval is ever "forward"
+    if (trollOnCircle(s, node)) return false; // no elf may step onto a troll
     return elvesOn(s, node).length < MAX_ELVES_PER_CIRCLE;
   }
 
   function canTrollEnter(s, node, team) {
-    return trollOnCircle(s, node) !== ENEMY[team];
+    return trollOnCircle(s, node) !== ENEMY[team]; // trolls never share a circle
   }
 
+  /** Legal moves for one piece (by id). */
   function pieceMoves(s, pieceId) {
     if (s.winner) return [];
     const team = s.turn;
@@ -127,6 +161,10 @@
       .map((to) => ({ kind: 'elf', id: elf.id, team, from: elf.node, to }));
   }
 
+  /**
+   * All legal moves for the side to move.
+   * With `dedupe`, identical elf moves (same from → to) are collapsed — handy for the AI.
+   */
   function legalMoves(s, { dedupe = false } = {}) {
     if (s.winner) return [];
     const team = s.turn;
@@ -143,6 +181,10 @@
     return moves;
   }
 
+  /**
+   * Apply a move. Returns { state, events } where events describe what happened
+   * (used by the UI to animate): move, bonk, trollReset, finish, pass, win.
+   */
   function applyMove(s0, move) {
     const s = cloneState(s0);
     const team = s.turn;
@@ -188,6 +230,11 @@
     s.elves.filter((e) => e.team === team && !e.done && e.node === HOME[team]).length;
 
   // ==================== src/game/ai.js ====================
+  /**
+   * Simple AI: negamax + alpha-beta with iterative deepening and a time budget.
+   */
+
+
   const LEVELS = {
     easy: { timeMs: 60, maxDepth: 1, noise: 3 },
     normal: { timeMs: 450, maxDepth: 5, noise: 0.4 },
@@ -214,6 +261,7 @@
         score += p + p * p * 0.18;
         if (!isOval(e.node) && enemyTrollReach.has(e.node)) score -= 0.35 * (p + 1);
       } else if (!e.done) {
+        // Enemy elves still "in front" of my troll can be hit later.
         const theirProgFromMySide = progress(e.node, team);
         if (theirProgFromMySide > myTrollProg) score += 0.2;
       }
@@ -266,6 +314,7 @@
     return best;
   }
 
+  /** Pick a move for the side to move. */
   function chooseMove(s, level = 'normal') {
     const cfg = LEVELS[level] ?? LEVELS.normal;
     const rootMoves = legalMoves(s, { dedupe: true });
@@ -290,7 +339,7 @@
           }
         }
         if (iterBest) bestMove = iterBest;
-        if (alpha >= WIN) break;
+        if (alpha >= WIN) break; // found a forced win
       } catch (err) {
         if (err !== TIMEOUT) throw err;
         break;
@@ -300,7 +349,9 @@
   }
 
   // ==================== src/i18n.js ====================
-  const STORE_LANG_KEY = 'elfish-checkers:lang';
+  /** Tiny i18n layer: English + Hebrew (RTL). */
+
+  const STORE_KEY = 'elfish-checkers:lang';
 
   const en = {
     docTitle: 'Elfish Checkers — a Tolkien-inspired race of elves & trolls',
@@ -449,13 +500,13 @@
   };
 
   const DICTS = { en, he };
-  const langListeners = new Set();
+  const listeners = new Set();
 
   let lang = (() => {
     const fromUrl = new URLSearchParams(location.search).get('lang');
     if (fromUrl && DICTS[fromUrl]) return fromUrl;
     try {
-      const saved = localStorage.getItem(STORE_LANG_KEY);
+      const saved = localStorage.getItem(STORE_KEY);
       if (saved && DICTS[saved]) return saved;
     } catch { /* ignore */ }
     return navigator.language?.toLowerCase().startsWith('he') ? 'he' : 'en';
@@ -468,6 +519,7 @@
     return str.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
   }
 
+  /** Translate everything marked with data-i18n* attributes and set lang/dir. */
   function applyStatic(root = document) {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
@@ -482,14 +534,16 @@
   function setLang(next) {
     if (!DICTS[next] || next === lang) return;
     lang = next;
-    try { localStorage.setItem(STORE_LANG_KEY, lang); } catch { /* ignore */ }
+    try { localStorage.setItem(STORE_KEY, lang); } catch { /* ignore */ }
     applyStatic();
-    langListeners.forEach((fn) => fn(lang));
+    listeners.forEach((fn) => fn(lang));
   }
 
-  const onLangChange = (fn) => langListeners.add(fn);
+  const onLangChange = (fn) => listeners.add(fn);
 
   // ==================== src/ui/pieces.js ====================
+  /** SVG helpers and piece artwork (elf + troll tokens). */
+
   const NS = 'http://www.w3.org/2000/svg';
 
   function svg(tag, attrs = {}, parent) {
@@ -499,6 +553,7 @@
     return node;
   }
 
+  /** Shared gradients / symbols. */
   function buildDefs(defs) {
     defs.innerHTML = `
       <radialGradient id="g-elf-W" cx="38%" cy="32%" r="75%">
@@ -553,6 +608,7 @@
     `;
   }
 
+  /** Elf token: hooded head with pointed ears and a golden circlet. */
   function createElf(team) {
     const g = svg('g', { class: `piece elf elf--${team}` });
     const body = svg('g', { class: 'piece-body' }, g);
@@ -569,6 +625,7 @@
     return g;
   }
 
+  /** Troll token: mossy stone face with tusks, rimmed in its team colour. */
   function createTroll(team) {
     const g = svg('g', { class: `piece troll troll--${team}` });
     const body = svg('g', { class: 'piece-body' }, g);
@@ -589,6 +646,8 @@
   }
 
   // ==================== src/ui/fx.js ====================
+  /** One-shot visual effects (leaves, bonks, dust, sparkles). All use the Web Animations API. */
+
   const LEAF_COLORS = ['hsl(95 45% 58%)', 'hsl(48 78% 64%)', 'hsl(140 38% 46%)', 'hsl(34 72% 58%)', 'hsl(70 50% 55%)'];
   const STAR = 'M0,-5 L1.4,-1.4 5,0 1.4,1.4 0,5 -1.4,1.4 -5,0 -1.4,-1.4Z';
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -601,6 +660,7 @@
     Promise.all(anims.map((a) => a.finished.catch(() => {}))).then(() => group.remove());
   }
 
+  /** A few leaves drift down from the path of a moving elf. */
   function leafTrail(layer, from, to, duration) {
     const count = 4;
     for (let i = 0; i < count; i++) {
@@ -623,6 +683,7 @@
     }
   }
 
+  /** Troll lands on elves: shock ring, stars and a "BONK!". */
   function bonk(layer, p, count, label = 'BONK!') {
     const g = at(layer, p.x, p.y);
     const anims = [];
@@ -657,6 +718,7 @@
     cleanup(g, anims);
   }
 
+  /** Puff of grey dust (troll landing / troll trudging home). */
   function dust(layer, p, big = false) {
     const g = at(layer, p.x, p.y + (big ? 0 : 16));
     const anims = [];
@@ -676,6 +738,7 @@
     cleanup(g, anims);
   }
 
+  /** Golden sparkle when an elf reaches the far oval. */
   function sparkle(layer, p) {
     const g = at(layer, p.x, p.y);
     const anims = [];
@@ -700,6 +763,7 @@
     cleanup(g, anims);
   }
 
+  /** Victory: a shower of golden & green leaves over the whole board. */
   function leafShower(layer, view, count = 46) {
     for (let i = 0; i < count; i++) {
       const g = at(layer, rand(20, view.w - 20), -20);
@@ -719,10 +783,17 @@
   const fx = { leafTrail, bonk, dust, sparkle, leafShower };
 
   // ==================== src/ui/renderer.js ====================
+  /** SVG board renderer: draws the board, positions pieces and plays move animations. */
+
+
+
+
+
   const WAIT_SLOTS = [[-48, -13], [-48, 13], [48, -13], [48, 13], [-74, 0], [74, 0], [0, 30]];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const tr = (p) => `translate(${p.x}px, ${p.y}px)`;
 
+  /** Where every piece should sit for a given state. */
   function computeLayout(state) {
     const pos = new Map();
     const byNode = new Map();
@@ -776,6 +847,7 @@
       buildDefs(svg('defs', {}, root));
       this.stage = svg('g', { class: 'stage' }, root);
 
+      // Board cloth
       const board = svg('g', { class: 'board' }, this.stage);
       svg('rect', { x: 10, y: 10, width: VIEW.w - 20, height: VIEW.h - 20, rx: 34, fill: 'url(#g-board)' }, board);
       svg('rect', { x: 10, y: 10, width: VIEW.w - 20, height: VIEW.h - 20, rx: 34, fill: '#fff', filter: 'url(#f-fabric)' }, board);
@@ -786,6 +858,7 @@
         this.boardTitles.push(tx);
       }
 
+      // Lines + leaf arrows
       const lines = svg('g', { class: 'edges' }, board);
       for (const [a, b] of EDGES) {
         const A = NODES[a];
@@ -797,6 +870,7 @@
         svg('use', { href: '#leaf', class: 'edge-leaf', transform: `translate(${mx} ${my}) rotate(${ang}) scale(1.5 1.9)` }, lines);
       }
 
+      // Nodes
       this.nodeEls = {};
       const nodes = svg('g', { class: 'nodes' }, board);
       for (const n of Object.values(NODES)) {
@@ -829,6 +903,7 @@
       root.addEventListener('click', () => this.onNode(null));
     }
 
+    /** Re-apply all language-dependent text. */
     relabel() {
       this.boardTitles.forEach((el) => (el.textContent = t('title')));
       for (const [id, g] of this.pieces) {
@@ -863,6 +938,7 @@
       this.pieceLayer.appendChild(this.pieces.get(id));
     }
 
+    /** Snap or tween every piece to its place for `state`. */
     layout(state, { animate = true, duration = 280 } = {}) {
       const target = computeLayout(state);
       const anims = [];
@@ -871,6 +947,7 @@
         const prev = this.cur.get(id);
         this.cur.set(id, p);
         g.style.transform = tr(p);
+        g.style.opacity = '';
         this.body(id).style.transform = `scale(${p.s})`;
         if (animate && this.motion && prev && (prev.x !== p.x || prev.y !== p.y)) {
           anims.push(g.animate([{ transform: tr(prev) }, { transform: tr(p) }], {
@@ -882,6 +959,7 @@
       return Promise.all(anims);
     }
 
+    /** Arc-shaped hop from the current spot to `to`. */
     hop(id, to, { lift = 22, duration = 420, spin = 0 } = {}) {
       const g = this.pieces.get(id);
       const from = this.cur.get(id);
@@ -928,6 +1006,7 @@
       );
     }
 
+    /** Play the events produced by applyMove, ending in `finalState`. */
     async play(events, finalState) {
       if (!this.motion) {
         await this.layout(finalState, { animate: false });
@@ -968,14 +1047,19 @@
           const g = this.pieces.get(id);
           await sleep(120);
           fx.dust(this.fxLayer, this.cur.get(id), true);
-          await g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' }).finished;
+          try {
+            await g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' }).finished;
+          } catch {}
           const home = final.get(id);
           this.cur.set(id, home);
           g.style.transform = tr(home);
           this.body(id).style.transform = `scale(${home.s})`;
           fx.dust(this.fxLayer, home, true);
-          await g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: 'forwards' }).finished;
+          try {
+            await g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: 'forwards' }).finished;
+          } catch {}
           g.getAnimations().forEach((a) => a.cancel());
+          g.style.opacity = '';
         } else if (ev.type === 'finish') {
           fx.sparkle(this.fxLayer, final.get(ev.id));
         }
@@ -987,6 +1071,7 @@
       if (this.motion) fx.leafShower(this.fxLayer, VIEW);
     }
 
+    /** Highlight whose turn it is, which pieces can move, the selection and its targets. */
     setInteraction({ turn, movable, selected, targets, locked }) {
       for (const [id, g] of this.pieces) {
         const canMove = !locked && movable.has(id);
@@ -1010,6 +1095,7 @@
         g.addEventListener('click', go);
         g.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && go(e));
       }
+      // Hints sit above the pieces only while a selection is active.
       if (targets.length) this.stage.appendChild(this.hintLayer);
       else this.stage.insertBefore(this.hintLayer, this.pieceLayer);
       this.stage.appendChild(this.fxLayer);
@@ -1017,11 +1103,17 @@
   }
 
   // ==================== src/main.js ====================
+
+
+
+
+
   const STORE_KEY = 'elfish-checkers:v1';
   const teamName = (team) => t(`team_${team}`);
   const VICTORY_QUOTE = { W: 'Aiya Eärendil Elenion Ancalima!', B: "Utúlie'n aurë!" };
   const $ = (sel) => document.querySelector(sel);
 
+  /* ---------------- State ---------------- */
   let game = { state: initialState(), history: [] };
   let settings = { mode: 'pvp', human: 'W', level: 'normal' };
   const ui = { selected: null, busy: false, thinking: false, aiToken: 0, message: '', lastEvents: null };
@@ -1039,6 +1131,7 @@
     } catch { /* storage may be unavailable */ }
   }
 
+  /* ---------------- AI (worker with main-thread fallback) ---------------- */
   let worker = null;
   const pending = new Map();
   try {
@@ -1062,6 +1155,7 @@
     });
   }
 
+  /* ---------------- Helpers ---------------- */
   const st = () => game.state;
   const isAiTurn = () => settings.mode === 'ai' && st().turn !== settings.human && !st().winner;
   const canHumanAct = () => !ui.busy && !st().winner && !isAiTurn();
@@ -1072,6 +1166,7 @@
     return new Set(ids.filter((id) => pieceMoves(s, id).length));
   }
 
+  /* ---------------- Rendering ---------------- */
   let renderer = null;
 
   function setStatus(html) {
@@ -1130,6 +1225,7 @@
     return parts.join(' ');
   }
 
+  /* ---------------- Game flow ---------------- */
   async function doMove(move) {
     const prev = st();
     game.history.push(prev);
@@ -1165,7 +1261,7 @@
     const move = await askAI(st(), settings.level, token);
     const wait = Math.max(0, 550 - (performance.now() - started));
     await new Promise((r) => setTimeout(r, wait));
-    if (token !== ui.aiToken) return;
+    if (token !== ui.aiToken) return; // cancelled (undo / new game)
     ui.thinking = false;
     ui.busy = false;
     if (move) doMove(move);
@@ -1248,6 +1344,7 @@
     return s;
   }
 
+  /* ---------------- Wiring ---------------- */
   function initUI() {
     for (const team of ['W', 'B']) {
       const card = $(`#card-${team}`);
@@ -1268,6 +1365,8 @@
       refresh();
     });
 
+    // Click on the backdrop closes a dialog (the dialog body fills the box, so
+    // a click whose target is the <dialog> itself must be on the backdrop).
     for (const dlg of document.querySelectorAll('dialog')) {
       dlg.addEventListener('click', (e) => {
         if (e.target === dlg) dlg.close();
