@@ -351,7 +351,7 @@
   // ==================== src/i18n.js ====================
   /** Tiny i18n layer: English + Hebrew (RTL). */
 
-  const STORE_KEY = 'elfish-checkers:lang';
+  const LANG_STORE_KEY = 'elfish-checkers:lang';
 
   const en = {
     docTitle: 'Elfish Checkers — a Tolkien-inspired race of elves & trolls',
@@ -506,7 +506,7 @@
     const fromUrl = new URLSearchParams(location.search).get('lang');
     if (fromUrl && DICTS[fromUrl]) return fromUrl;
     try {
-      const saved = localStorage.getItem(STORE_KEY);
+      const saved = localStorage.getItem(LANG_STORE_KEY);
       if (saved && DICTS[saved]) return saved;
     } catch { /* ignore */ }
     return navigator.language?.toLowerCase().startsWith('he') ? 'he' : 'en';
@@ -534,7 +534,7 @@
   function setLang(next) {
     if (!DICTS[next] || next === lang) return;
     lang = next;
-    try { localStorage.setItem(STORE_KEY, lang); } catch { /* ignore */ }
+    try { localStorage.setItem(LANG_STORE_KEY, lang); } catch { /* ignore */ }
     applyStatic();
     listeners.forEach((fn) => fn(lang));
   }
