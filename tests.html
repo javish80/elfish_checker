@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Elfish Checkers — rule tests</title>
+  <meta name="robots" content="noindex">
+  <style>
+    body { font: 14px/1.5 ui-monospace, Menlo, monospace; background: #0b1416; color: #dfe; padding: 2rem; }
+    .pass { color: #7ee2a8; } .fail { color: #ff8a8a; }
+    #summary { font-size: 1.2rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div id="summary">Running…</div>
+  <ol id="out"></ol>
+  <script type="module">
+    import { initialState, legalMoves, pieceMoves, applyMove, cloneState } from './src/game/rules.js';
+    import { NODES, EDGES, forward } from './src/game/board.js';
+    import { chooseMove } from './src/game/ai.js';
+
+    const results = [];
+    const test = (name, fn) => {
+      try { fn(); results.push({ name, ok: true }); }
+      catch (e) { results.push({ name, ok: false, msg: e.message }); }
+    };
+    const eq = (a, b, m = '') => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${m} expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`); };
+    const ok = (c, m) => { if (!c) throw new Error(m || 'assertion failed'); };
+
+    /** Empty board helper: all elves parked at home, trolls at home. */
+    function emptyState(turn = 'W') {
+      const s = initialState();
+      s.turn = turn;
+      s.elves.forEach((e) => (e.node = e.team));
+      return s;
+    }
+    const elf = (s, id) => s.elves.find((e) => e.id === id);
+
+    test('board has 20 nodes and diagonal-only links', () => {
+      eq(Object.keys(NODES).length, 20);
+      eq(EDGES.length, 8 + 4 * 6);
+      for (const [a, b] of EDGES) eq(Math.abs(NODES[a].row - NODES[b].row), 1, `${a}-${b}`);
+    });
+
+    test('initial setup: 7 elves per side on first two rows', () => {
+      const s = initialState();
+      eq(s.elves.filter((e) => e.team === 'W').map((e) => NODES[e.node].row).sort(), [1, 1, 1, 1, 2, 2, 2]);
+      eq(s.elves.filter((e) => e.team === 'B').map((e) => NODES[e.node].row).sort(), [4, 4, 4, 5, 5, 5, 5]);
+      eq(s.trolls, { W: 'W', B: 'B' });
+      eq(s.turn, 'W');
+    });
+
+    test('pieces only move forward', () => {
+      eq(forward('3-1', 'W').every((n) => NODES[n].row === 4), true);
+      eq(forward('3-1', 'B').every((n) => NODES[n].row === 2), true);
+      const s = initialState();
+      for (const m of legalMoves(s)) ok(NODES[m.to].row > NODES[m.from].row, 'white moved backwards');
+    });
+
+    test('a circle holds at most two elves (mixed teams allowed)', () => {
+      const s = emptyState();
+      elf(s, 'W0').node = '2-0';
+      elf(s, 'B0').node = '3-0';
+      elf(s, 'B1').node = '3-0';
+      eq(pieceMoves(s, 'W0').map((m) => m.to), ['3-1'], 'full circle 3-0 must be skipped');
+      elf(s, 'B1').node = 'B';
+      eq(pieceMoves(s, 'W0').map((m) => m.to).sort(), ['3-0', '3-1']);
+    });
+
+    test('elves cannot step onto a troll circle', () => {
+      const s = emptyState();
+      elf(s, 'W0').node = '2-0';
+      s.trolls.B = '3-0';
+      eq(pieceMoves(s, 'W0').map((m) => m.to), ['3-1']);
+      s.trolls.B = 'B'; s.trolls.W = '3-1';
+      eq(pieceMoves(s, 'W0').map((m) => m.to), ['3-0'], 'own troll blocks too');
+    });
+
+    test('troll bonks elves of BOTH teams back to their own homes', () => {
+      const s = emptyState();
+      s.trolls.W = '2-1';
+      elf(s, 'W0').node = '3-1';
+      elf(s, 'B0').node = '3-1';
+      const { state, events } = applyMove(s, { kind: 'troll', id: 'TW', from: '2-1', to: '3-1' });
+      eq(elf(state, 'W0').node, 'W');
+      eq(elf(state, 'B0').node, 'B');
+      eq(state.trolls.W, '3-1');
+      ok(events.some((e) => e.type === 'bonk' && e.ids.length === 2));
+    });
+
+    test('troll reaching the enemy oval returns home', () => {
+      const s = emptyState();
+      s.trolls.W = '5-2';
+      const { state, events } = applyMove(s, { kind: 'troll', id: 'TW', from: '5-2', to: 'B' });
+      eq(state.trolls.W, 'W');
+      ok(events.some((e) => e.type === 'trollReset'));
+    });
+
+    test('a troll in a home oval does NOT block elves', () => {
+      const s = emptyState();
+      elf(s, 'W0').node = '5-0';
+      eq(s.trolls.B, 'B');
+      eq(pieceMoves(s, 'W0').map((m) => m.to), ['B']);
+    });
+
+    test('home oval does not bonk and has no elf limit', () => {
+      const s = emptyState();
+      s.trolls.W = '5-0';
+      const { state } = applyMove(s, { kind: 'troll', id: 'TW', from: '5-0', to: 'B' });
+      ok(state.elves.filter((e) => e.team === 'B').every((e) => e.node === 'B'), 'black elves untouched');
+    });
+
+    test('trolls cannot share a circle', () => {
+      const s = emptyState();
+      s.trolls.W = '2-0';
+      s.trolls.B = '3-0';
+      eq(pieceMoves(s, 'TW').map((m) => m.to), ['3-1']);
+    });
+
+    test('elf entering enemy oval is finished; 7 finished wins', () => {
+      const s = emptyState();
+      s.elves.filter((e) => e.team === 'W').forEach((e, i) => { if (i < 6) { e.node = 'B'; e.done = true; } });
+      elf(s, 'W6').node = '5-3';
+      const { state, events } = applyMove(s, { kind: 'elf', id: 'W6', from: '5-3', to: 'B' });
+      ok(elf(state, 'W6').done);
+      eq(state.winner, 'W');
+      ok(events.some((e) => e.type === 'win'));
+      eq(legalMoves(state).length, 0);
+    });
+
+    test('finished elves cannot move', () => {
+      const s = emptyState();
+      elf(s, 'W0').node = 'B'; elf(s, 'W0').done = true;
+      eq(pieceMoves(s, 'W0').length, 0);
+    });
+
+    test('turn alternates', () => {
+      const s = initialState();
+      const { state } = applyMove(s, legalMoves(s)[0]);
+      eq(state.turn, 'B');
+    });
+
+    test('applyMove does not mutate input', () => {
+      const s = initialState();
+      const snap = JSON.stringify(s);
+      applyMove(s, legalMoves(s)[0]);
+      eq(JSON.stringify(s), snap);
+    });
+
+    test('AI returns a legal move', () => {
+      const s = initialState();
+      for (const level of ['easy', 'normal']) {
+        const m = chooseMove(s, level);
+        ok(legalMoves(s).some((x) => x.from === m.from && x.to === m.to && x.kind === m.kind), level);
+      }
+    });
+
+    test('AI takes an immediate win', () => {
+      const s = emptyState('B');
+      s.elves.filter((e) => e.team === 'B').forEach((e, i) => { if (i < 6) { e.node = 'W'; e.done = true; } });
+      elf(s, 'B6').node = '1-2';
+      const m = chooseMove(s, 'normal');
+      eq([m.id, m.to], ['B6', 'W']);
+    });
+
+    test('random self-play games finish without errors', () => {
+      for (let g = 0; g < 30; g++) {
+        let s = initialState();
+        for (let i = 0; i < 4000 && !s.winner; i++) {
+          const moves = legalMoves(s);
+          ok(moves.length, 'no moves');
+          // Bias toward elves so games end
+          const elfMoves = moves.filter((m) => m.kind === 'elf');
+          const pool = elfMoves.length && Math.random() < 0.85 ? elfMoves : moves;
+          s = applyMove(s, pool[Math.floor(Math.random() * pool.length)]).state;
+          for (const n of Object.keys(NODES)) {
+            if (NODES[n].kind === 'circle') ok(s.elves.filter((e) => e.node === n).length <= 2, 'capacity broken');
+          }
+        }
+      }
+    });
+
+    const out = document.getElementById('out');
+    for (const r of results) {
+      const li = document.createElement('li');
+      li.className = r.ok ? 'pass' : 'fail';
+      li.textContent = `${r.ok ? '✔' : '✘'} ${r.name}${r.msg ? ' — ' + r.msg : ''}`;
+      out.appendChild(li);
+    }
+    const failed = results.filter((r) => !r.ok).length;
+    const summary = document.getElementById('summary');
+    summary.textContent = failed ? `${failed} of ${results.length} tests FAILED` : `All ${results.length} tests passed`;
+    summary.className = failed ? 'fail' : 'pass';
+    document.title = summary.textContent;
+  </script>
+</body>
+</html>

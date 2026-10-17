@@ -1,0 +1,77 @@
+/* ==========================================================================
+   Board, pieces & effects (SVG)
+   ========================================================================== */
+.board-border { fill: none; stroke: hsl(178 60% 14% / .5); stroke-width: 1.5; stroke-dasharray: 2 7; stroke-linecap: round; }
+.board-title {
+  font-family: var(--font-display); font-weight: 700; font-size: 26px; letter-spacing: 3px;
+  fill: hsl(178 62% 14% / .62);
+}
+:root:lang(he) .board-title { letter-spacing: 0; font-size: 30px; font-weight: 900; }
+.edge { stroke: hsl(178 62% 14% / .5); stroke-width: 2.5; stroke-linecap: round; }
+.edge-leaf { fill: hsl(178 62% 14% / .8); }
+
+.node-shape { stroke: hsl(180 60% 8%); stroke-width: 2; }
+.knot { color: hsl(174 45% 44%); opacity: .9; }
+.knot--oval { color: hsl(174 45% 46%); }
+.node-inner { fill: none; stroke: hsl(174 45% 40% / .45); stroke-width: 1.2; stroke-dasharray: 3 5; }
+.node-glow { fill: none; stroke: var(--gold); stroke-width: 2; opacity: 0; transition: opacity .4s ease; }
+.node.is-turn .node-glow { opacity: .55; animation: node-breathe 2.4s ease-in-out infinite; }
+@keyframes node-breathe { 50% { opacity: .18; } }
+
+/* Pieces */
+.piece { outline: none; }
+.piece-body { transform-box: fill-box; transform-origin: center; transition: transform .25s ease; }
+.piece-halo {
+  fill: hsl(45 90% 70% / .08); stroke: var(--gold); stroke-width: 2.5;
+  opacity: 0; transition: opacity .2s ease;
+  transform-box: fill-box; transform-origin: center;
+}
+.piece.is-movable { cursor: pointer; }
+.piece.is-movable .piece-halo { opacity: .22; }
+.piece.is-movable:hover .piece-halo,
+.piece.is-movable:focus-visible .piece-halo { opacity: .75; }
+.piece.is-selected .piece-halo { opacity: 1; animation: halo-pulse 1.3s ease-in-out infinite; }
+@keyframes halo-pulse { 50% { transform: scale(1.12); opacity: .6; } }
+
+.elf--W .token-rim { fill: none; stroke: hsl(180 30% 30% / .3); stroke-width: 1; }
+.elf--B .token-rim { fill: none; stroke: hsl(266 60% 72% / .6); stroke-width: 1.2; }
+.elf--W .elf-glyph { fill: hsl(182 48% 20%); }
+.elf--B .elf-glyph { fill: hsl(262 30% 84%); }
+.elf--B .token { stroke: hsl(266 55% 60% / .7); stroke-width: 1.2; }
+.elf--W .token { stroke: hsl(0 0% 100% / .8); stroke-width: 1; }
+.circlet { fill: none; stroke: hsl(43 85% 62%); stroke-width: 1.5; stroke-linecap: round; }
+.circlet-gem { fill: hsl(45 95% 72%); }
+
+.troll-rim { fill: none; stroke-width: 3.2; }
+.troll--W .troll-rim { stroke: hsl(45 30% 94%); }
+.troll--B .troll-rim { stroke: hsl(262 25% 10%); }
+.troll-ear { fill: hsl(90 10% 42%); stroke: hsl(90 12% 26%); stroke-width: 1; }
+.troll-brow { fill: none; stroke: hsl(90 15% 16%); stroke-width: 2.8; stroke-linecap: round; }
+.troll-eye { fill: hsl(42 98% 62%); filter: drop-shadow(0 0 2px hsl(42 100% 55%)); }
+.troll-nose, .troll-mouth { fill: none; stroke: hsl(90 15% 18%); stroke-width: 2; stroke-linecap: round; }
+.troll-tusk { fill: hsl(45 50% 92%); stroke: hsl(45 20% 50%); stroke-width: .6; }
+
+/* Move hints */
+.hint { cursor: pointer; outline: none; }
+.hint circle, .hint ellipse {
+  fill: hsl(45 90% 70% / .14);
+  stroke: var(--gold); stroke-width: 2.6; stroke-dasharray: 7 6; stroke-linecap: round;
+  animation: hint-dash 1.6s linear infinite, hint-pulse 1.6s ease-in-out infinite;
+  transform-box: fill-box; transform-origin: center;
+}
+.hint:hover circle, .hint:hover ellipse, .hint:focus-visible circle, .hint:focus-visible ellipse {
+  fill: hsl(45 90% 70% / .3);
+}
+@keyframes hint-dash { to { stroke-dashoffset: -26; } }
+@keyframes hint-pulse { 50% { transform: scale(1.06); } }
+
+/* Effects */
+.fx > * { transform-box: fill-box; transform-origin: center; }
+.fx-ring { fill: none; stroke: hsl(45 95% 68%); stroke-width: 3; }
+.fx-ring--soft { stroke: hsl(48 100% 85%); stroke-width: 2; }
+.fx-star { fill: hsl(46 98% 68%); }
+.fx-dust { fill: hsl(80 8% 72% / .7); }
+.fx-bonk {
+  font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: 1px;
+  fill: hsl(46 100% 70%); stroke: hsl(28 70% 14%); stroke-width: 4; paint-order: stroke; stroke-linejoin: round;
+}
