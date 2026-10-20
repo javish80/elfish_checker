@@ -79,6 +79,8 @@ export function createElf(team) {
   svg('path', { d: 'M-9.5,12.5 C-8.5,6.5 -4.5,5.2 0,5.2 C4.5,5.2 8.5,6.5 9.5,12.5 Z' }, glyph);
   svg('path', { class: 'circlet', d: 'M-5.4,-4.2 Q0,-7 5.4,-4.2' }, body);
   svg('circle', { class: 'circlet-gem', cx: 0, cy: -5.6, r: 1.2 }, body);
+  svg('circle', { cx: -3.5, cy: 2, r: 1.5, fill: 'hsl(180, 100%, 80%)' }, body);
+  svg('circle', { cx: 3.5, cy: 2, r: 1.5, fill: 'hsl(180, 100%, 80%)' }, body);
   return g;
 }
 
@@ -94,11 +96,13 @@ export function createTroll(team) {
   svg('circle', { class: 'troll-ear', cx: -19, cy: -3, r: 4 }, face);
   svg('circle', { class: 'troll-ear', cx: 19, cy: -3, r: 4 }, face);
   svg('path', { class: 'troll-brow', d: 'M-12,-7 Q-6,-11 -1,-6 M1,-6 Q6,-11 12,-7' }, face);
-  svg('circle', { class: 'troll-eye', cx: -6, cy: -2.5, r: 2.3 }, face);
-  svg('circle', { class: 'troll-eye', cx: 6, cy: -2.5, r: 2.3 }, face);
+  svg('circle', { class: 'troll-eye', cx: -6, cy: -2.5, r: 3 }, face);
+  svg('circle', { cx: -6, cy: -2.5, r: 1.2, fill: '#111' }, face);
+  svg('circle', { class: 'troll-eye', cx: 6, cy: -2.5, r: 3 }, face);
+  svg('circle', { cx: 6, cy: -2.5, r: 1.2, fill: '#111' }, face);
   svg('path', { class: 'troll-nose', d: 'M-3,0.5 Q0,6 3,0.5' }, face);
   svg('path', { class: 'troll-mouth', d: 'M-10,9 Q0,13.5 10,9' }, face);
-  svg('path', { class: 'troll-tusk', d: 'M-7,9.6 L-5.6,3.6 L-3.6,10.6 Z' }, face);
-  svg('path', { class: 'troll-tusk', d: 'M7,9.6 L5.6,3.6 L3.6,10.6 Z' }, face);
+  svg('path', { class: 'troll-tusk', d: 'M-8,10 L-6,2 L-3,11 Z' }, face);
+  svg('path', { class: 'troll-tusk', d: 'M8,10 L6,2 L3,11 Z' }, face);
   return g;
 }
