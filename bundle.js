@@ -614,6 +614,7 @@
     const body = svg('g', { class: 'piece-body' }, g);
     svg('circle', { class: 'piece-halo', r: 22 }, body);
     svg('circle', { class: 'token', r: 17, fill: `url(#g-elf-${team})`, filter: 'url(#f-shadow)' }, body);
+    svg('ellipse', { class: 'token-highlight', cx: -3, cy: -6, rx: 9, ry: 5, fill: 'white', opacity: 0.15, transform: 'rotate(-30)' }, body);
     svg('circle', { class: 'token-rim', r: 14.5 }, body);
     const glyph = svg('g', { class: 'elf-glyph' }, body);
     svg('path', { d: 'M-4.6,-2.2 L-12.5,-7.5 L-5.2,2.2 Z' }, glyph);
@@ -631,6 +632,7 @@
     const body = svg('g', { class: 'piece-body' }, g);
     svg('circle', { class: 'piece-halo', r: 30 }, body);
     svg('circle', { class: 'token', r: 23, fill: 'url(#g-troll)', filter: 'url(#f-shadow)' }, body);
+    svg('ellipse', { class: 'token-highlight', cx: -4, cy: -8, rx: 12, ry: 6, fill: 'white', opacity: 0.1, transform: 'rotate(-20)' }, body);
     svg('circle', { class: 'troll-rim', r: 23 }, body);
     const face = svg('g', { class: 'troll-face' }, body);
     svg('circle', { class: 'troll-ear', cx: -19, cy: -3, r: 4 }, face);
@@ -968,10 +970,12 @@
       this.body(id).style.transform = `scale(${to.s})`;
       if (!this.motion) return Promise.resolve();
       const frames = [];
+      const dx = to.x - from.x;
       for (let i = 0; i <= 10; i++) {
         const t = i / 10;
+        const wobble = dx * 0.1 * Math.sin(t * Math.PI);
         frames.push({
-          transform: `translate(${from.x + (to.x - from.x) * t}px, ${from.y + (to.y - from.y) * t - lift * 4 * t * (1 - t)}px)`,
+          transform: `translate(${from.x + dx * t}px, ${from.y + (to.y - from.y) * t - lift * 4 * t * (1 - t)}px) rotate(${wobble}deg)`,
         });
       }
       const anims = [g.animate(frames, { duration, easing: 'cubic-bezier(.45,.05,.55,.95)' }).finished];
@@ -990,8 +994,8 @@
       this.body(id).animate(
         [
           { transform: `scale(${s})` },
-          { transform: `scale(${s * 1.18}, ${s * 0.82})`, offset: 0.3 },
-          { transform: `scale(${s * 0.95}, ${s * 1.05})`, offset: 0.65 },
+          { transform: `scale(${s * 1.3}, ${s * 0.7})`, offset: 0.3 },
+          { transform: `scale(${s * 0.9}, ${s * 1.1})`, offset: 0.65 },
           { transform: `scale(${s})` },
         ],
         { duration: 340, easing: 'ease-out' },
