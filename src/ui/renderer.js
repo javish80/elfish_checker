@@ -184,10 +184,12 @@ export class Renderer {
     this.body(id).style.transform = `scale(${to.s})`;
     if (!this.motion) return Promise.resolve();
     const frames = [];
+    const dx = to.x - from.x;
     for (let i = 0; i <= 10; i++) {
       const t = i / 10;
+      const wobble = dx * 0.1 * Math.sin(t * Math.PI);
       frames.push({
-        transform: `translate(${from.x + (to.x - from.x) * t}px, ${from.y + (to.y - from.y) * t - lift * 4 * t * (1 - t)}px)`,
+        transform: `translate(${from.x + dx * t}px, ${from.y + (to.y - from.y) * t - lift * 4 * t * (1 - t)}px) rotate(${wobble}deg)`,
       });
     }
     const anims = [g.animate(frames, { duration, easing: 'cubic-bezier(.45,.05,.55,.95)' }).finished];
@@ -206,8 +208,8 @@ export class Renderer {
     this.body(id).animate(
       [
         { transform: `scale(${s})` },
-        { transform: `scale(${s * 1.18}, ${s * 0.82})`, offset: 0.3 },
-        { transform: `scale(${s * 0.95}, ${s * 1.05})`, offset: 0.65 },
+        { transform: `scale(${s * 1.3}, ${s * 0.7})`, offset: 0.3 },
+        { transform: `scale(${s * 0.9}, ${s * 1.1})`, offset: 0.65 },
         { transform: `scale(${s})` },
       ],
       { duration: 340, easing: 'ease-out' },

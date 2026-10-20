@@ -70,6 +70,7 @@ export function createElf(team) {
   const body = svg('g', { class: 'piece-body' }, g);
   svg('circle', { class: 'piece-halo', r: 22 }, body);
   svg('circle', { class: 'token', r: 17, fill: `url(#g-elf-${team})`, filter: 'url(#f-shadow)' }, body);
+  svg('ellipse', { class: 'token-highlight', cx: -3, cy: -6, rx: 9, ry: 5, fill: 'white', opacity: 0.15, transform: 'rotate(-30)' }, body);
   svg('circle', { class: 'token-rim', r: 14.5 }, body);
   const glyph = svg('g', { class: 'elf-glyph' }, body);
   svg('path', { d: 'M-4.6,-2.2 L-12.5,-7.5 L-5.2,2.2 Z' }, glyph);
@@ -87,6 +88,7 @@ export function createTroll(team) {
   const body = svg('g', { class: 'piece-body' }, g);
   svg('circle', { class: 'piece-halo', r: 30 }, body);
   svg('circle', { class: 'token', r: 23, fill: 'url(#g-troll)', filter: 'url(#f-shadow)' }, body);
+  svg('ellipse', { class: 'token-highlight', cx: -4, cy: -8, rx: 12, ry: 6, fill: 'white', opacity: 0.1, transform: 'rotate(-20)' }, body);
   svg('circle', { class: 'troll-rim', r: 23 }, body);
   const face = svg('g', { class: 'troll-face' }, body);
   svg('circle', { class: 'troll-ear', cx: -19, cy: -3, r: 4 }, face);
